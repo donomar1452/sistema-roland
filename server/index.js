@@ -22,20 +22,20 @@ const PORT = process.env.PORT || 3001;
 
 // 1. Helmet HTTP Security Headers
 app.use(helmet({
-  contentSecurityPolicy: false, // Permitir fuentes externas y estilos dinámicos
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
 // 2. Rate Limiters
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 300, // 300 peticiones por ventana por IP
+  windowMs: 15 * 60 * 1000,
+  max: 300,
   message: { success: false, error: 'Demasiadas peticiones desde esta IP. Intente de nuevo en 15 minutos.' }
 });
 
 const ocrLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minuto
-  max: 15, // Máximo 15 análisis de foto por minuto
+  windowMs: 1 * 60 * 1000,
+  max: 15,
   message: { success: false, error: 'Límite de peticiones de análisis por IA alcanzado. Por favor espere un minuto.' }
 });
 
@@ -46,10 +46,10 @@ app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// 4. Secure Multer Uploads (Validación estricta Mime-Type y límite 10MB)
+// 4. Secure Multer Uploads
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (allowedTypes.includes(file.mimetype)) {
@@ -60,13 +60,12 @@ const upload = multer({
   }
 });
 
-// Inicializar Base de Datos y realizar backup inicial de arranque
+// Inicializar DB y Backup de arranque
 initDB();
 createDatabaseBackup();
 
 // --- ENDPOINTS DE LA API ---
 
-// POST /api/verify-pin (Validar PIN de taller)
 app.post('/api/verify-pin', (req, res) => {
   const { pin } = req.body;
   const isValid = verifyPIN(pin);
@@ -77,7 +76,6 @@ app.post('/api/verify-pin', (req, res) => {
   }
 });
 
-// GET /api/orders
 app.get('/api/orders', (req, res) => {
   try {
     const orders = getAllOrders();
@@ -88,7 +86,6 @@ app.get('/api/orders', (req, res) => {
   }
 });
 
-// GET /api/orders/:id
 app.get('/api/orders/:id', (req, res) => {
   try {
     const order = getOrderById(req.params.id);
@@ -101,11 +98,10 @@ app.get('/api/orders/:id', (req, res) => {
   }
 });
 
-// POST /api/orders (Crear o Actualizar)
 app.post('/api/orders', (req, res) => {
   try {
     const saved = saveOrder(req.body);
-    createDatabaseBackup(); // Backup preventivo tras cada guardado
+    createDatabaseBackup();
     res.json({ success: true, data: saved });
   } catch (err) {
     console.error('Error guardando orden:', err);
@@ -113,7 +109,6 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// DELETE /api/orders/:id
 app.delete('/api/orders/:id', (req, res) => {
   try {
     const result = deleteOrder(req.params.id);
@@ -123,7 +118,6 @@ app.delete('/api/orders/:id', (req, res) => {
   }
 });
 
-// POST /api/extract (OCR / Visión por IA con Rate Limiting)
 app.post('/api/extract', ocrLimiter, upload.array('images', 5), async (req, res) => {
   try {
     let images = [];
@@ -164,13 +158,16 @@ app.post('/api/extract', ocrLimiter, upload.array('images', 5), async (req, res)
   }
 });
 
-// Servir estáticos en producción
+// Servir estáticos de React en producción
 const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
 
-// Fallback SPA de React para cualquier ruta del navegador
-app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
+// Fallback para React Router / SPA (Compatible con Express 5 y path-to-regexp v8)
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    return res.sendFile(path.join(distPath, 'index.html'));
+  }
+  next();
 });
 
 // Middleware de manejo global de errores seguro
@@ -184,6 +181,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`================================================`);
-  console.log(`🔒 Servidor SEGURO escuchando en http://localhost:${PORT}`);
+  console.log(`🔒 Servidor SEGURO escuchando en puerto ${PORT}`);
   console.log(`================================================`);
 });
