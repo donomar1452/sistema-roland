@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  sistema-roland:
+    build: .
+    container_name: sistema_roland_alonso
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - WORKSHOP_PIN=1234
+      - APIS_NET_PE_TOKEN=sk_12673.wvjOp4ZRg6p5tUWFoFIlrQLLO1blIAix
+      # - GEMINI_API_KEY=tu_clave_de_gemini_aqui
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups

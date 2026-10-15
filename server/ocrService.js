@@ -220,8 +220,12 @@ export async function extractDataFromImages(images) {
         contents: contentsParts,
       });
 
-      const text = response.text;
-      const cleanJSON = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const text = response.text || '';
+      let cleanJSON = text.trim();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanJSON = jsonMatch[0];
+      }
       return JSON.parse(cleanJSON);
 
     } catch (err) {

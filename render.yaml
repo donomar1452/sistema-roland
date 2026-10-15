@@ -10,5 +10,14 @@ services:
         value: production
       - key: WORKSHOP_PIN
         value: 1234
+      - key: APIS_NET_PE_TOKEN
+        value: sk_12673.wvjOp4ZRg6p5tUWFoFIlrQLLO1blIAix
       - key: GEMINI_API_KEY
         sync: false
+    # NOTA PARA RENDER: En el plan gratuito de Render, el disco se restablece al suspenderse.
+    # Recomendación: Descargar copias de respaldo JSON con regularidad desde el botón
+    # 'Configuración > Respaldos' en el sistema, o vincular un Persistent Disk (plan Starter).
+    # disk:
+    #   name: data-roland
+    #   mountPath: /app/data
+    #   sizeGB: 1

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function PrintableOrder({ order }) {
+export default function PrintableOrder({ order, settings }) {
   if (!order) return null;
 
   const client = order.datos_cliente || {};
@@ -15,6 +15,13 @@ export default function PrintableOrder({ order }) {
   const repuestos = order.repuestos_items || [];
   const terceros = order.terceros_items || [];
   const manoObra = order.mano_obra_items || [];
+
+  const legalName = settings?.razon_social || "TECNIMOTOR'S & RECTIFICACIONES ALONSO E.I.R.L.";
+  const ruc = settings?.ruc || "20600240677";
+  const address = settings?.direccion ? `${settings.direccion}${settings.distrito ? ' - ' + settings.distrito : ''}${settings.departamento ? ' - ' + settings.departamento : ''}` : "CALLE LIBERTAD N° 491 - MORRO SOLAR - JAEN - CAJAMARCA";
+  const phone = settings?.telefono || "980 988 321 - 931 429 334";
+  const whatsapp = settings?.whatsapp || "998 843 989";
+  const footerDesc = settings?.pie_pagina || "SERVICIO DE TORNO Y RECTIFICACIONES. VENTA DE REPUESTOS ORIGINALES";
 
   // Helper check icon
   const CheckBox = ({ checked, label }) => (
@@ -52,15 +59,15 @@ export default function PrintableOrder({ order }) {
                 </div>
               </td>
               <td style={{ width: '45%', padding: '4px', textAlign: 'center', borderRight: '1px solid #000' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '9pt' }}>TECNIMOTOR'S & RECTIFICACIONES ALONSO E.I.R.L.</div>
+                <div style={{ fontWeight: 'bold', fontSize: '9pt' }}>{legalName}</div>
                 <div style={{ fontSize: '7.5pt', fontWeight: 'bold', color: '#b91c1c' }}>
                   SERVICIO DE INYECCIÓN ELECTRÓNICA Y ESCANEO
                 </div>
                 <div style={{ fontSize: '6pt' }}>
                   MANTENIMIENTO Y REPARACIÓN DE MOTOCICLETAS, MOTOKAR Y PRODUCTOS DE FUERZA<br />
-                  SERVICIO DE TORNO Y RECTIFICACIONES.VENTA DE REPUESTOS ORIGINALE<br />
-                  CALLE LIBERTAD N° 491 - MORRO SOLAR - JAEN - CAJAMARCA<br />
-                  ☎ 980 988 321 - 931 429 334 &nbsp;|&nbsp; 💬 998 843 989
+                  {footerDesc}<br />
+                  {address}<br />
+                  ☎ {phone} &nbsp;|&nbsp; 💬 {whatsapp}
                 </div>
               </td>
               <td style={{ width: '30%', padding: '4px', verticalAlign: 'top' }}>
@@ -80,7 +87,7 @@ export default function PrintableOrder({ order }) {
                   FECHA Y HORA DE ENTREGA: {order.fecha_entrega} {order.hora_entrega}
                 </div>
                 <div style={{ fontSize: '6.5pt', fontWeight: 'bold', marginTop: '2px' }}>
-                  R.U.C. 20600240677
+                  R.U.C. {ruc}
                 </div>
               </td>
             </tr>

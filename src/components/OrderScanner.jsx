@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { UploadCloud, FileImage, Sparkles, AlertCircle, ArrowRight, Loader } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileImage, Sparkles, AlertCircle, ArrowRight, Loader, UploadCloud } from 'lucide-react';
 
 export default function OrderScanner({ onExtractionComplete, onCancel }) {
   const [frontImage, setFrontImage] = useState(null);
@@ -9,8 +9,27 @@ export default function OrderScanner({ onExtractionComplete, onCancel }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  const handleFileChange = (e, side) => {
-    const file = e.target.files[0];
+  // Paste image support (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            processFile(blob, !frontImage ? 'front' : 'back');
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [frontImage]);
+
+  const processFile = (file, side) => {
     if (!file) return;
 
     const reader = new FileReader();
@@ -24,6 +43,22 @@ export default function OrderScanner({ onExtractionComplete, onCancel }) {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleFileChange = (e, side) => {
+    const file = e.target.files[0];
+    processFile(file, side);
+  };
+
+  const handleDrop = (e, side) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0], side);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
   };
 
   const handleProcessImages = async () => {
@@ -74,8 +109,8 @@ export default function OrderScanner({ onExtractionComplete, onCancel }) {
         <button className="btn btn-outline" onClick={onCancel}>Cancelar</button>
       </div>
 
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-        Sube la fotografía o imagen escaneada del <strong>Frente (Página 1)</strong> y/o <strong>Reverso (Página 2)</strong> de la ficha física de Tecnimotor's Alonso. La IA extraerá los datos automáticamente.
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+        Arrastre la foto, selecciónela o péguela desde el portapapeles (<code>Ctrl + V</code>) del <strong>Frente (Página 1)</strong> y/o <strong>Reverso (Página 2)</strong>.
       </p>
 
       {errorMsg && (
@@ -85,19 +120,24 @@ export default function OrderScanner({ onExtractionComplete, onCancel }) {
       )}
 
       {/* Upload Boxes Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         {/* FRONT IMAGE */}
         <div>
           <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#fff' }}>1. Frente de la Ficha (Hoja 1)</h4>
-          <label className={`dropzone ${frontPreview ? 'active' : ''}`} style={{ height: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
+          <label
+            className={`dropzone ${frontPreview ? 'active' : ''}`}
+            style={{ height: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden', border: '2px dashed var(--border-color)', borderRadius: '12px', cursor: 'pointer', background: 'rgba(15, 23, 42, 0.6)' }}
+            onDrop={e => handleDrop(e, 'front')}
+            onDragOver={handleDragOver}
+          >
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'front')} />
             {frontPreview ? (
               <img src={frontPreview} alt="Frente" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             ) : (
               <>
-                <FileImage size={40} style={{ color: 'var(--primary)', marginBottom: '0.5rem' }} />
-                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Haga clic o arrastre el FRENTE</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Datos Cliente, Vehículo, Inventario y Totales</div>
+                <UploadCloud size={44} style={{ color: 'var(--primary)', marginBottom: '0.5rem' }} />
+                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Arrastra o haz clic para subir FRENTE</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>O presiona Ctrl+V para pegar foto</div>
               </>
             )}
           </label>
@@ -106,15 +146,20 @@ export default function OrderScanner({ onExtractionComplete, onCancel }) {
         {/* BACK IMAGE */}
         <div>
           <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#fff' }}>2. Reverso de la Ficha (Hoja 2)</h4>
-          <label className={`dropzone ${backPreview ? 'active' : ''}`} style={{ height: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
+          <label
+            className={`dropzone ${backPreview ? 'active' : ''}`}
+            style={{ height: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden', border: '2px dashed var(--border-color)', borderRadius: '12px', cursor: 'pointer', background: 'rgba(15, 23, 42, 0.6)' }}
+            onDrop={e => handleDrop(e, 'back')}
+            onDragOver={handleDragOver}
+          >
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'back')} />
             {backPreview ? (
               <img src={backPreview} alt="Reverso" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             ) : (
               <>
-                <FileImage size={40} style={{ color: 'var(--accent)', marginBottom: '0.5rem' }} />
-                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Haga clic o arrastre el REVERSO</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Tablas de Repuestos, Terceros y Mano de Obra</div>
+                <FileImage size={44} style={{ color: 'var(--accent)', marginBottom: '0.5rem' }} />
+                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Arrastra o haz clic para subir REVERSO</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>O presiona Ctrl+V para pegar foto</div>
               </>
             )}
           </label>
@@ -122,7 +167,7 @@ export default function OrderScanner({ onExtractionComplete, onCancel }) {
       </div>
 
       {/* ACTION BUTTONS */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <button className="btn btn-outline" onClick={handleUseDemoTemplate}>
           Cargar Datos de Demostración
         </button>
