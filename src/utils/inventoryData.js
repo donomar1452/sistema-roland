@@ -45,6 +45,29 @@ export const POPULAR_MODELS = [
   'TVS APACHE 160', 'RONCO DEMON 150', 'WANXIN 150', 'ZONGSHEN 125'
 ];
 
+const CUSTOM_MODELS_KEY = 'roland_custom_models_v1';
+
+export function getCustomModels() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_MODELS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+export function saveCustomModel(model) {
+  const trimmed = model.trim().toUpperCase();
+  if (!trimmed) return false;
+  const existing = getCustomModels();
+  if ([...POPULAR_MODELS, ...existing].includes(trimmed)) return false;
+  localStorage.setItem(CUSTOM_MODELS_KEY, JSON.stringify([...existing, trimmed]));
+  return true;
+}
+
+export function deleteCustomModel(model) {
+  const existing = getCustomModels();
+  localStorage.setItem(CUSTOM_MODELS_KEY, JSON.stringify(existing.filter(m => m !== model)));
+}
+
 export const POPULAR_COLORS = ['ROJO', 'NEGRO', 'AZUL', 'BLANCO', 'GRIS/PLOMO', 'VERDE'];
 
 export const LABOR_PRESETS = [

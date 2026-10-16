@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Printer, ArrowLeft, Trash2, CheckSquare, Wrench, User, Bike, Send, CheckCircle2, XCircle, Sparkles, PhoneCall, Package, Search } from 'lucide-react';
-import { POPULAR_MODELS, POPULAR_COLORS, LABOR_PRESETS, INVENTORY_CATEGORIES, getStoredParts } from '../utils/inventoryData';
+import { POPULAR_MODELS, POPULAR_COLORS, LABOR_PRESETS, INVENTORY_CATEGORIES, getStoredParts, getCustomModels, saveCustomModel, deleteCustomModel } from '../utils/inventoryData';
 
 export default function OrderEditor({ initialOrder, onSave, onCancel, onPrint, existingOrders = [], initialTab = 'DATOS' }) {
   const [order, setOrder] = useState(() => {
@@ -66,6 +66,23 @@ export default function OrderEditor({ initialOrder, onSave, onCancel, onPrint, e
   const [clientSuggestions, setClientSuggestions] = useState([]);
   const [isSearchingDni, setIsSearchingDni] = useState(false);
   const [workshopParts, setWorkshopParts] = useState(getStoredParts);
+
+  // Mobile collapsible sections (Paso 2 y Paso 3)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [step2Open, setStep2Open] = useState(false);
+  const [step3Open, setStep3Open] = useState(false);
+  const [showModelList, setShowModelList] = useState(false);
+  const [customModels, setCustomModels] = useState(getCustomModels);
+  const [newModelInput, setNewModelInput] = useState('');
+  const [showAddModel, setShowAddModel] = useState(false);
+  const [showServiciosList, setShowServiciosList] = useState(false);
+  const [showLaborList, setShowLaborList] = useState(false);
+  const [showPartsList, setShowPartsList] = useState(false);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Custom accessories for bike inventory
   const [showAddAccessory, setShowAddAccessory] = useState(false);
@@ -560,7 +577,11 @@ Su orden *${orderNum}* (${bikeModel} ${plate}) se encuentra: *${estado}*.
           {/* PASO 2: DATOS DE LA MOTO                    */}
           {/* ============================================ */}
           <div className="card" style={{ borderLeft: '4px solid var(--primary)' }}>
-            <div className="card-header">
+            <div
+              className="card-header"
+              onClick={() => isMobile && setStep2Open(o => !o)}
+              style={{ cursor: isMobile ? 'pointer' : 'default', userSelect: 'none' }}
+            >
               <div>
                 <div className="card-title" style={{ fontSize: '1.08rem' }}>
                   <span style={{ background: 'var(--primary)', color: '#fff', width: '28px', height: '28px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.825rem', fontWeight: '700' }}>
@@ -572,159 +593,372 @@ Su orden *${orderNum}* (${bikeModel} ${plate}) se encuentra: *${estado}*.
                   Seleccione el modelo con 1 clic o escriba los datos del vehículo.
                 </div>
               </div>
-              <span className="badge badge-process" style={{ fontSize: '0.775rem' }}>
-                Paso 2 de 4
-              </span>
-            </div>
-
-            {/* Quick Model Presets */}
-            <div style={{ marginBottom: '1.15rem', background: 'rgba(11, 15, 25, 0.5)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '0.55rem' }}>
-                Modelos Frecuentes (1 Clic):
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '0.45rem' }}>
-                {POPULAR_MODELS.map(m => {
-                  const isSelected = order.datos_vehiculo?.modelo === m;
-                  return (
-                    <button
-                      key={m}
-                      type="button"
-                      className="btn"
-                      style={{
-                        minHeight: '38px',
-                        fontSize: '0.85rem',
-                        fontWeight: '600',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '7px',
-                        background: isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: isSelected ? '#fff' : '#cbd5e1',
-                        border: isSelected ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--border-color)'
-                      }}
-                      onClick={() => updateNestedField('datos_vehiculo', 'modelo', m)}
-                    >
-                      {isSelected ? '✓ ' : ''}{m}
-                    </button>
-                  );
-                })}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="badge badge-process" style={{ fontSize: '0.775rem' }}>
+                  Paso 2 de 4
+                </span>
+                {isMobile && (
+                  <span style={{ color: 'var(--primary)', fontSize: '1.2rem', lineHeight: 1 }}>
+                    {step2Open ? '▲' : '▼'}
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Modelo *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  style={{ fontWeight: '600' }}
-                  value={order.datos_vehiculo?.modelo || ''}
-                  onChange={e => updateNestedField('datos_vehiculo', 'modelo', e.target.value)}
-                  placeholder="Ej: HONDA GL 150"
-                />
-              </div>
+            {(!isMobile || step2Open) && (
+              <>
+                {/* Quick Model Presets — Dropdown desplegable */}
+                <div style={{ marginBottom: '1.15rem', position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowModelList(v => !v)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: 'rgba(11, 15, 25, 0.5)',
+                      border: showModelList ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                      borderRadius: showModelList ? '8px 8px 0 0' : '8px',
+                      padding: '0.75rem 1rem',
+                      cursor: 'pointer',
+                      color: '#e2e8f0',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      🏍️ Modelos Frecuentes
+                      {order.datos_vehiculo?.modelo && POPULAR_MODELS.includes(order.datos_vehiculo.modelo) && (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--primary)', background: 'rgba(59,130,246,0.15)', padding: '0.15rem 0.5rem', borderRadius: '12px' }}>
+                          ✓ {order.datos_vehiculo.modelo}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ color: 'var(--primary)', fontSize: '1rem' }}>{showModelList ? '▲' : '▼'}</span>
+                  </button>
 
-              <div className="form-group">
-                <label>Placa *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  style={{ textTransform: 'uppercase', fontWeight: '700', letterSpacing: '1px', color: 'var(--primary)', fontSize: '1.05rem' }}
-                  value={order.datos_vehiculo?.placa || ''}
-                  onChange={e => updateNestedField('datos_vehiculo', 'placa', e.target.value.toUpperCase())}
-                  placeholder="Ej: 1234-5B o S/P"
-                />
-              </div>
+                  {showModelList && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 20,
+                      background: '#0f1729',
+                      border: '1px solid var(--primary)',
+                      borderTop: 'none',
+                      borderRadius: '0 0 10px 10px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      overflow: 'hidden',
+                      maxHeight: '320px',
+                      overflowY: 'auto'
+                    }}>
+                      {/* Modelos base */}
+                      {POPULAR_MODELS.map((m, i) => {
+                        const isSelected = order.datos_vehiculo?.modelo === m;
+                        const allModels = [...POPULAR_MODELS, ...customModels];
+                        return (
+                          <div
+                            key={m}
+                            onClick={() => {
+                              updateNestedField('datos_vehiculo', 'modelo', m);
+                              setShowModelList(false);
+                            }}
+                            style={{
+                              padding: '0.75rem 1rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: '0.9rem',
+                              fontWeight: isSelected ? '700' : '400',
+                              color: isSelected ? '#fff' : '#cbd5e1',
+                              background: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                              borderBottom: '1px solid rgba(255,255,255,0.05)',
+                              transition: 'background 0.1s ease'
+                            }}
+                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isSelected ? 'rgba(59,130,246,0.2)' : 'transparent'; }}
+                          >
+                            <span>{m}</span>
+                            {isSelected && <span style={{ color: 'var(--primary)', fontSize: '1rem' }}>✓</span>}
+                          </div>
+                        );
+                      })}
 
-              <div className="form-group">
-                <label>Color</label>
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  {POPULAR_COLORS.map(c => {
-                    const isSelected = order.datos_vehiculo?.color === c;
-                    return (
-                      <button
-                        key={c}
-                        type="button"
-                        className="btn btn-outline"
-                        style={{
-                          padding: '0.4rem 0.75rem',
-                          fontSize: '0.825rem',
-                          fontWeight: '600',
-                          minHeight: '36px',
-                          borderRadius: '6px',
-                          background: isSelected ? 'var(--primary)' : 'transparent',
-                          borderColor: isSelected ? 'rgba(255,255,255,0.35)' : 'var(--border-color)',
-                          color: '#fff'
-                        }}
-                        onClick={() => updateNestedField('datos_vehiculo', 'color', c)}
-                      >
-                        {c}
-                      </button>
-                    );
-                  })}
+                      {/* Modelos personalizados */}
+                      {customModels.length > 0 && (
+                        <>
+                          <div style={{ padding: '0.4rem 1rem', fontSize: '0.72rem', color: 'var(--accent)', fontWeight: '700', letterSpacing: '0.5px', background: 'rgba(59,130,246,0.06)', borderTop: '1px solid rgba(59,130,246,0.2)' }}>
+                            ⭐ MIS MODELOS
+                          </div>
+                          {customModels.map(m => {
+                            const isSelected = order.datos_vehiculo?.modelo === m;
+                            return (
+                              <div
+                                key={m}
+                                style={{
+                                  padding: '0.65rem 1rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  fontSize: '0.9rem',
+                                  fontWeight: isSelected ? '700' : '400',
+                                  color: isSelected ? '#fff' : '#cbd5e1',
+                                  background: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                  transition: 'background 0.1s ease'
+                                }}
+                                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isSelected ? 'rgba(59,130,246,0.2)' : 'transparent'; }}
+                              >
+                                <span
+                                  style={{ flex: 1, cursor: 'pointer' }}
+                                  onClick={() => {
+                                    updateNestedField('datos_vehiculo', 'modelo', m);
+                                    setShowModelList(false);
+                                  }}
+                                >
+                                  {m}
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  {isSelected && <span style={{ color: 'var(--primary)', fontSize: '1rem' }}>✓</span>}
+                                  <button
+                                    type="button"
+                                    title="Eliminar modelo"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      deleteCustomModel(m);
+                                      const updated = getCustomModels();
+                                      setCustomModels(updated);
+                                    }}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#f87171',
+                                      cursor: 'pointer',
+                                      fontSize: '0.85rem',
+                                      padding: '0.1rem 0.3rem',
+                                      borderRadius: '4px',
+                                      lineHeight: 1
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+
+                      {/* Formulario agregar nuevo modelo */}
+                      {showAddModel ? (
+                        <div style={{ padding: '0.65rem 1rem', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(16,185,129,0.06)' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input
+                              autoFocus
+                              type="text"
+                              className="form-control"
+                              style={{ flex: 1, fontSize: '0.875rem', textTransform: 'uppercase' }}
+                              placeholder="Ej: KTM DUKE 200..."
+                              value={newModelInput}
+                              onChange={e => setNewModelInput(e.target.value.toUpperCase())}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const ok = saveCustomModel(newModelInput);
+                                  if (ok) {
+                                    const updated = getCustomModels();
+                                    setCustomModels(updated);
+                                    updateNestedField('datos_vehiculo', 'modelo', newModelInput.trim().toUpperCase());
+                                    setNewModelInput('');
+                                    setShowAddModel(false);
+                                    setShowModelList(false);
+                                  }
+                                }
+                                if (e.key === 'Escape') { setShowAddModel(false); setNewModelInput(''); }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ fontSize: '0.8rem', minHeight: '38px', padding: '0.35rem 0.75rem', flexShrink: 0 }}
+                              onClick={() => {
+                                const ok = saveCustomModel(newModelInput);
+                                if (ok) {
+                                  const updated = getCustomModels();
+                                  setCustomModels(updated);
+                                  updateNestedField('datos_vehiculo', 'modelo', newModelInput.trim().toUpperCase());
+                                  setNewModelInput('');
+                                  setShowAddModel(false);
+                                  setShowModelList(false);
+                                }
+                              }}
+                            >
+                              Guardar
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              style={{ fontSize: '0.8rem', minHeight: '38px', padding: '0.35rem 0.65rem', flexShrink: 0 }}
+                              onClick={() => { setShowAddModel(false); setNewModelInput(''); }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            padding: '0.7rem 1rem',
+                            borderTop: '1px solid rgba(255,255,255,0.08)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            fontSize: '0.875rem',
+                            color: 'var(--success)',
+                            fontWeight: '600',
+                            background: 'rgba(16,185,129,0.06)',
+                            transition: 'background 0.1s ease'
+                          }}
+                          onClick={() => setShowAddModel(true)}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.12)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(16,185,129,0.06)'}
+                        >
+                          <span style={{ fontSize: '1.1rem' }}>＋</span> Agregar nuevo modelo
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label>Nivel de Gasolina</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.25rem' }}>
-                  {[
-                    { label: '🔴 E', value: 'E', title: 'Vacío' },
-                    { label: '🟡 1/4', value: '1/4', title: 'Un Cuarto' },
-                    { label: '🟢 1/2', value: '1/2', title: 'Medio' },
-                    { label: '🟢 3/4', value: '3/4', title: 'Tres Cuartos' },
-                    { label: '🟢 F', value: 'F', title: 'Lleno' }
-                  ].map(lvl => (
-                    <button
-                      key={lvl.value}
-                      type="button"
-                      className="btn"
-                      title={lvl.title}
-                      style={{
-                        padding: '0.4rem 0.15rem',
-                        fontSize: '0.8rem',
-                        minHeight: '38px',
-                        minWidth: 0,
-                        background: order.datos_vehiculo?.gasolina === lvl.value ? 'var(--accent)' : '#090d16',
-                        border: order.datos_vehiculo?.gasolina === lvl.value ? '1.5px solid #fff' : '1px solid var(--border-color)',
-                        color: '#fff',
-                        fontWeight: '600'
-                      }}
-                      onClick={() => updateNestedField('datos_vehiculo', 'gasolina', lvl.value)}
-                    >
-                      {lvl.label}
-                    </button>
-                  ))}
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Modelo *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ fontWeight: '600' }}
+                      value={order.datos_vehiculo?.modelo || ''}
+                      onChange={e => updateNestedField('datos_vehiculo', 'modelo', e.target.value)}
+                      placeholder="Ej: HONDA GL 150"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Placa *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ textTransform: 'uppercase', fontWeight: '700', letterSpacing: '1px', color: 'var(--primary)', fontSize: '1.05rem' }}
+                      value={order.datos_vehiculo?.placa || ''}
+                      onChange={e => updateNestedField('datos_vehiculo', 'placa', e.target.value.toUpperCase())}
+                      placeholder="Ej: 1234-5B o S/P"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Color</label>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {POPULAR_COLORS.map(c => {
+                        const isSelected = order.datos_vehiculo?.color === c;
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            className="btn btn-outline"
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              fontSize: '0.825rem',
+                              fontWeight: '600',
+                              minHeight: '36px',
+                              borderRadius: '6px',
+                              background: isSelected ? 'var(--primary)' : 'transparent',
+                              borderColor: isSelected ? 'rgba(255,255,255,0.35)' : 'var(--border-color)',
+                              color: '#fff'
+                            }}
+                            onClick={() => updateNestedField('datos_vehiculo', 'color', c)}
+                          >
+                            {c}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Nivel de Gasolina</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.25rem' }}>
+                      {[
+                        { label: '🔴 E', value: 'E', title: 'Vacío' },
+                        { label: '🟡 1/4', value: '1/4', title: 'Un Cuarto' },
+                        { label: '🟢 1/2', value: '1/2', title: 'Medio' },
+                        { label: '🟢 3/4', value: '3/4', title: 'Tres Cuartos' },
+                        { label: '🟢 F', value: 'F', title: 'Lleno' }
+                      ].map(lvl => (
+                        <button
+                          key={lvl.value}
+                          type="button"
+                          className="btn"
+                          title={lvl.title}
+                          style={{
+                            padding: '0.4rem 0.15rem',
+                            fontSize: '0.8rem',
+                            minHeight: '38px',
+                            minWidth: 0,
+                            background: order.datos_vehiculo?.gasolina === lvl.value ? 'var(--accent)' : '#090d16',
+                            border: order.datos_vehiculo?.gasolina === lvl.value ? '1.5px solid #fff' : '1px solid var(--border-color)',
+                            color: '#fff',
+                            fontWeight: '600'
+                          }}
+                          onClick={() => updateNestedField('datos_vehiculo', 'gasolina', lvl.value)}
+                        >
+                          {lvl.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Kilometraje</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={order.datos_vehiculo?.kilometraje || ''}
+                      onChange={e => updateNestedField('datos_vehiculo', 'kilometraje', e.target.value)}
+                      placeholder="Ej: 15400 km"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>N° Motor / Chasis (Opcional)</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="N° Motor o Chasis..."
+                      value={order.datos_vehiculo?.nro_motor || ''}
+                      onChange={e => updateNestedField('datos_vehiculo', 'nro_motor', e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div className="form-group">
-                <label>Kilometraje</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={order.datos_vehiculo?.kilometraje || ''}
-                  onChange={e => updateNestedField('datos_vehiculo', 'kilometraje', e.target.value)}
-                  placeholder="Ej: 15400 km"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>N° Motor / Chasis (Opcional)</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="N° Motor o Chasis..."
-                  value={order.datos_vehiculo?.nro_motor || ''}
-                  onChange={e => updateNestedField('datos_vehiculo', 'nro_motor', e.target.value)}
-                />
-              </div>
-            </div>
+              </>
+            )}
           </div>
 
           {/* ============================================ */}
           {/* PASO 3: TRABAJOS A REALIZAR Y DIAGNÓSTICO   */}
           {/* ============================================ */}
           <div className="card" style={{ borderLeft: '4px solid var(--warning)' }}>
-            <div className="card-header">
+            <div
+              className="card-header"
+              onClick={() => isMobile && setStep3Open(o => !o)}
+              style={{ cursor: isMobile ? 'pointer' : 'default', userSelect: 'none' }}
+            >
               <div>
                 <div className="card-title" style={{ fontSize: '1.08rem' }}>
                   <span style={{ background: 'var(--warning)', color: '#000', width: '28px', height: '28px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.825rem', fontWeight: '700' }}>
@@ -736,201 +970,505 @@ Su orden *${orderNum}* (${bikeModel} ${plate}) se encuentra: *${estado}*.
                   Marque los trabajos solicitados y agregue mano de obra y repuestos.
                 </div>
               </div>
-              <span className="badge badge-process" style={{ fontSize: '0.775rem' }}>
-                Paso 3 de 4
-              </span>
-            </div>
-
-            {/* Checkboxes de Trabajos */}
-            <div style={{ marginBottom: '1.15rem' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#e2e8f0', marginBottom: '0.55rem' }}>
-                Servicios Requeridos:
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.55rem' }}>
-                {Object.keys(order.trabajos_especificos || {}).filter(k => k !== 'otros').map(jobKey => {
-                  const isChecked = !!order.trabajos_especificos[jobKey];
-                  return (
-                    <label
-                      key={jobKey}
-                      className="checkbox-label"
-                      style={{
-                        minHeight: '44px',
-                        background: isChecked ? 'rgba(245, 158, 11, 0.15)' : 'rgba(11, 15, 25, 0.5)',
-                        padding: '0.55rem 0.85rem',
-                        borderRadius: '8px',
-                        border: isChecked ? '1px solid var(--warning)' : '1px solid var(--border-color)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={e => updateNestedField('trabajos_especificos', jobKey, e.target.checked)}
-                      />
-                      <span style={{ fontSize: '0.875rem', fontWeight: isChecked ? '600' : 'normal', color: isChecked ? '#fff' : '#cbd5e1' }}>
-                        {jobKey.replace(/_/g, ' ').toUpperCase()}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Fallas reportadas */}
-            <div className="form-group" style={{ marginBottom: '1.15rem' }}>
-              <label>Síntomas / Requerimientos del Cliente:</label>
-              <textarea
-                className="form-control"
-                rows="2"
-                style={{ fontSize: '0.95rem' }}
-                value={order.requerimientos_cliente || ''}
-                onChange={e => setOrder({ ...order, requerimientos_cliente: e.target.value })}
-                placeholder="Fallas reportadas por el cliente (ej: ruido en motor, frenos largos, fuga de aceite)..."
-              />
-            </div>
-
-            {/* Inserción rápida de Mano de Obra y Repuestos */}
-            <div style={{ background: 'rgba(11, 15, 25, 0.5)', padding: '0.95rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.15rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <strong style={{ fontSize: '0.875rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <Sparkles size={16} style={{ color: 'var(--accent)' }} /> Mano de Obra Frecuente (1 Clic):
-                </strong>
-                <button type="button" className="btn btn-outline" style={{ fontSize: '0.8rem', minHeight: '34px', padding: '0.3rem 0.75rem' }} onClick={() => addItemRow('mano_obra_items')}>
-                  + Fila Mano de Obra
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.95rem' }}>
-                {LABOR_PRESETS.map((p, i) => (
-                  <button
-                    key={`labor-${i}`}
-                    type="button"
-                    className="btn btn-outline"
-                    style={{
-                      fontSize: '0.825rem',
-                      fontWeight: '600',
-                      minHeight: '36px',
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '6px',
-                      background: 'rgba(59, 130, 246, 0.08)',
-                      borderColor: 'rgba(59, 130, 246, 0.3)',
-                      color: '#fff'
-                    }}
-                    onClick={() => addLaborPreset(p)}
-                  >
-                    + {p.descripcion} <span style={{ color: 'var(--warning)', marginLeft: '3px' }}>(S/ {p.precio.toFixed(2)})</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Lista actual de Mano de Obra Responsive */}
-              {(order.mano_obra_items || []).length > 0 && (
-                <div style={{ marginBottom: '1.15rem' }}>
-                  {(order.mano_obra_items || []).map((mo, idx) => (
-                    <div key={`mo-${idx}`} style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                      <input
-                        type="text"
-                        className="form-control"
-                        style={{ flex: '2 1 180px', minWidth: '150px', fontWeight: '500' }}
-                        value={mo.descripcion || ''}
-                        onChange={e => handleItemChange('mano_obra_items', idx, 'descripcion', e.target.value)}
-                        placeholder="Descripción trabajo..."
-                      />
-                      <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flex: '1 1 120px' }}>
-                        <input
-                          type="number"
-                          className="form-control"
-                          style={{ flex: 1, minWidth: '75px', fontWeight: '600', color: 'var(--primary)' }}
-                          value={mo.precio_unitario || ''}
-                          onChange={e => handleItemChange('mano_obra_items', idx, 'precio_unitario', e.target.value)}
-                          placeholder="Precio S/"
-                        />
-                        <button type="button" className="btn btn-danger" style={{ minHeight: '44px', padding: '0.4rem 0.75rem', flexShrink: 0 }} onClick={() => removeItemRow('mano_obra_items', idx)}>
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Inserción rápida de Repuestos */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  <strong style={{ fontSize: '0.875rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <Package size={16} style={{ color: 'var(--success)' }} /> Repuestos de Taller Frecuentes:
-                  </strong>
-                  <button type="button" className="btn btn-outline" style={{ fontSize: '0.8rem', minHeight: '34px', padding: '0.3rem 0.75rem' }} onClick={() => addItemRow('repuestos_items')}>
-                    + Fila Repuesto
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.95rem' }}>
-                  {workshopParts.slice(0, 6).map(part => (
-                    <button
-                      key={part.id}
-                      type="button"
-                      className="btn btn-outline"
-                      style={{
-                        fontSize: '0.825rem',
-                        fontWeight: '600',
-                        minHeight: '36px',
-                        padding: '0.4rem 0.75rem',
-                        borderRadius: '6px',
-                        background: 'rgba(16, 185, 129, 0.08)',
-                        borderColor: 'rgba(16, 185, 129, 0.3)',
-                        color: '#fff'
-                      }}
-                      onClick={() => addRepuestoPreset(part)}
-                    >
-                      + {part.descripcion} <span style={{ color: 'var(--success)', marginLeft: '3px' }}>(S/ {part.precio.toFixed(2)})</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Lista actual de Repuestos Responsive */}
-                {(order.repuestos_items || []).length > 0 && (
-                  <div>
-                    {(order.repuestos_items || []).map((rep, idx) => (
-                      <div key={`rep-${idx}`} style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                        <input
-                          type="text"
-                          className="form-control"
-                          style={{ flex: '2 1 180px', minWidth: '150px' }}
-                          placeholder="Descripción del repuesto..."
-                          value={rep.descripcion || ''}
-                          onChange={e => handleItemChange('repuestos_items', idx, 'descripcion', e.target.value)}
-                        />
-                        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flex: '1 1 150px' }}>
-                          <input
-                            type="number"
-                            className="form-control"
-                            style={{ flex: 1, minWidth: '70px', fontWeight: '600', color: 'var(--success)' }}
-                            placeholder="Precio S/"
-                            value={rep.precio_unitario ?? ''}
-                            onChange={e => handleItemChange('repuestos_items', idx, 'precio_unitario', e.target.value)}
-                          />
-                          <input
-                            type="number"
-                            min="1"
-                            className="form-control"
-                            style={{ width: '70px', minWidth: '55px', textAlign: 'center', fontWeight: '600' }}
-                            value={rep.cantidad ?? 1}
-                            onChange={e => handleItemChange('repuestos_items', idx, 'cantidad', e.target.value)}
-                            title="Cantidad"
-                          />
-                          <button type="button" className="btn btn-danger" style={{ minHeight: '44px', padding: '0.4rem 0.75rem', flexShrink: 0 }} onClick={() => removeItemRow('repuestos_items', idx)}>
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="badge badge-process" style={{ fontSize: '0.775rem' }}>
+                  Paso 3 de 4
+                </span>
+                {isMobile && (
+                  <span style={{ color: 'var(--warning)', fontSize: '1.2rem', lineHeight: 1 }}>
+                    {step3Open ? '▲' : '▼'}
+                  </span>
                 )}
               </div>
             </div>
+
+            {(!isMobile || step3Open) && (
+              <>
+                {/* Servicios Requeridos — Panel desplegable */}
+                <div style={{ marginBottom: '1.15rem', position: 'relative' }}>
+                  {/* Botón toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setShowServiciosList(v => !v)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: 'rgba(11, 15, 25, 0.5)',
+                      border: showServiciosList ? '1px solid var(--warning)' : '1px solid var(--border-color)',
+                      borderRadius: showServiciosList ? '8px 8px 0 0' : '8px',
+                      padding: '0.75rem 1rem',
+                      cursor: 'pointer',
+                      color: '#e2e8f0',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      transition: 'all 0.15s ease',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', flex: 1 }}>
+                      🔧 Servicios Requeridos
+                      {/* Chips de servicios activos */}
+                      {Object.keys(order.trabajos_especificos || {})
+                        .filter(k => k !== 'otros' && order.trabajos_especificos[k])
+                        .slice(0, 3)
+                        .map(k => (
+                          <span key={k} style={{
+                            fontSize: '0.7rem', fontWeight: '700',
+                            background: 'rgba(245,158,11,0.2)', color: 'var(--warning)',
+                            border: '1px solid rgba(245,158,11,0.4)',
+                            padding: '0.1rem 0.45rem', borderRadius: '10px'
+                          }}>
+                            {k.replace(/_/g, ' ').toUpperCase()}
+                          </span>
+                        ))
+                      }
+                      {/* +N más */}
+                      {Object.keys(order.trabajos_especificos || {})
+                        .filter(k => k !== 'otros' && order.trabajos_especificos[k]).length > 3 && (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--warning)', fontWeight: '700' }}>
+                          +{Object.keys(order.trabajos_especificos || {}).filter(k => k !== 'otros' && order.trabajos_especificos[k]).length - 3} más
+                        </span>
+                      )}
+                      {/* Ninguno seleccionado */}
+                      {Object.keys(order.trabajos_especificos || {})
+                        .filter(k => k !== 'otros' && order.trabajos_especificos[k]).length === 0 && (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '400' }}>
+                          Ninguno seleccionado
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ color: 'var(--warning)', fontSize: '1rem', flexShrink: 0, marginLeft: '0.5rem' }}>
+                      {showServiciosList ? '▲' : '▼'}
+                    </span>
+                  </button>
+
+                  {/* Panel con checkboxes */}
+                  {showServiciosList && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 20,
+                      background: '#0f1729',
+                      border: '1px solid var(--warning)',
+                      borderTop: 'none',
+                      borderRadius: '0 0 10px 10px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      maxHeight: '320px',
+                      overflowY: 'auto'
+                    }}>
+                      {/* Acciones rápidas */}
+                      <div style={{ display: 'flex', gap: '0.5rem', padding: '0.6rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(245,158,11,0.06)' }}>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ fontSize: '0.75rem', minHeight: '30px', padding: '0.2rem 0.65rem', background: 'rgba(245,158,11,0.15)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.3)' }}
+                          onClick={() => {
+                            Object.keys(order.trabajos_especificos || {}).filter(k => k !== 'otros').forEach(k =>
+                              updateNestedField('trabajos_especificos', k, true)
+                            );
+                          }}
+                        >
+                          ✓ Todos
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          style={{ fontSize: '0.75rem', minHeight: '30px', padding: '0.2rem 0.65rem' }}
+                          onClick={() => {
+                            Object.keys(order.trabajos_especificos || {}).filter(k => k !== 'otros').forEach(k =>
+                              updateNestedField('trabajos_especificos', k, false)
+                            );
+                          }}
+                        >
+                          ✗ Ninguno
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          style={{ fontSize: '0.75rem', minHeight: '30px', padding: '0.2rem 0.65rem', marginLeft: 'auto' }}
+                          onClick={() => setShowServiciosList(false)}
+                        >
+                          Cerrar ▲
+                        </button>
+                      </div>
+
+                      {/* Lista de servicios */}
+                      {Object.keys(order.trabajos_especificos || {}).filter(k => k !== 'otros').map((jobKey, i, arr) => {
+                        const isChecked = !!order.trabajos_especificos[jobKey];
+                        return (
+                          <label
+                            key={jobKey}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.75rem',
+                              padding: '0.7rem 1rem',
+                              cursor: 'pointer',
+                              background: isChecked ? 'rgba(245,158,11,0.12)' : 'transparent',
+                              borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                              transition: 'background 0.1s ease',
+                              userSelect: 'none'
+                            }}
+                            onMouseEnter={e => { if (!isChecked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = isChecked ? 'rgba(245,158,11,0.12)' : 'transparent'; }}
+                          >
+                            {/* Checkbox custom */}
+                            <span style={{
+                              width: '20px', height: '20px', flexShrink: 0,
+                              borderRadius: '5px',
+                              border: isChecked ? '2px solid var(--warning)' : '2px solid #334155',
+                              background: isChecked ? 'var(--warning)' : 'transparent',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '0.8rem', color: '#000', fontWeight: '900',
+                              transition: 'all 0.1s ease'
+                            }}>
+                              {isChecked ? '✓' : ''}
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={e => updateNestedField('trabajos_especificos', jobKey, e.target.checked)}
+                              style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+                            />
+                            <span style={{
+                              fontSize: '0.9rem',
+                              fontWeight: isChecked ? '600' : '400',
+                              color: isChecked ? '#fff' : '#94a3b8'
+                            }}>
+                              {jobKey.replace(/_/g, ' ').toUpperCase()}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Fallas reportadas */}
+                <div className="form-group" style={{ marginBottom: '1.15rem' }}>
+                  <label>Síntomas / Requerimientos del Cliente:</label>
+                  <textarea
+                    className="form-control"
+                    rows="2"
+                    style={{ fontSize: '0.95rem' }}
+                    value={order.requerimientos_cliente || ''}
+                    onChange={e => setOrder({ ...order, requerimientos_cliente: e.target.value })}
+                    placeholder="Fallas reportadas por el cliente (ej: ruido en motor, frenos largos, fuga de aceite)..."
+                  />
+                </div>
+
+                {/* Mano de Obra Frecuente — Panel desplegable */}
+                <div style={{ background: 'rgba(11, 15, 25, 0.5)', padding: '0.95rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.15rem' }}>
+
+                  {/* Botón toggle dropdown */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowLaborList(v => !v)}
+                      style={{
+                        flex: '1 1 220px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: showLaborList ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: showLaborList ? '1px solid var(--accent)' : '1px solid rgba(59,130,246,0.35)',
+                        borderRadius: '8px',
+                        padding: '0.6rem 0.9rem',
+                        cursor: 'pointer',
+                        color: '#fff',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Sparkles size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                        Mano de Obra Frecuente
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '400' }}>
+                          ({LABOR_PRESETS.length} presets)
+                        </span>
+                      </span>
+                      <span style={{ color: 'var(--accent)', fontSize: '1rem' }}>{showLaborList ? '▲' : '▼'}</span>
+                    </button>
+
+                    {/* Botón fila manual siempre visible */}
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.8rem', minHeight: '38px', padding: '0.3rem 0.75rem', flexShrink: 0 }}
+                      onClick={() => addItemRow('mano_obra_items')}
+                    >
+                      + Fila Manual
+                    </button>
+                  </div>
+
+                  {/* Panel de presets integrado */}
+                  {showLaborList && (
+                    <div style={{
+                      marginBottom: '0.85rem',
+                      background: '#0a0f1d',
+                      border: '1px solid var(--accent)',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                      maxHeight: '270px',
+                      overflowY: 'auto'
+                    }}>
+                      {/* Cabecera con cerrar */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.45rem 0.85rem', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(59,130,246,0.08)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: '600' }}>
+                          Toque un trabajo para agregarlo a la orden:
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          style={{ fontSize: '0.72rem', minHeight: '26px', padding: '0.15rem 0.55rem' }}
+                          onClick={() => setShowLaborList(false)}
+                        >
+                          Cerrar ▲
+                        </button>
+                      </div>
+
+                      {LABOR_PRESETS.map((p, i) => (
+                        <div
+                          key={`lp-${i}`}
+                          style={{
+                            padding: '0.7rem 1rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.75rem',
+                            borderBottom: i < LABOR_PRESETS.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                            transition: 'background 0.1s ease'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.1)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          onClick={() => {
+                            addLaborPreset(p);
+                            setShowLaborList(false);
+                          }}
+                        >
+                          <span style={{ fontSize: '0.875rem', color: '#e2e8f0' }}>{p.descripcion}</span>
+                          <span style={{
+                            fontSize: '0.85rem', fontWeight: '700',
+                            color: 'var(--warning)',
+                            background: 'rgba(245,158,11,0.12)',
+                            border: '1px solid rgba(245,158,11,0.3)',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '6px',
+                            flexShrink: 0
+                          }}>
+                            S/ {p.precio.toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Lista actual de Mano de Obra */}
+                  {(order.mano_obra_items || []).length > 0 && (
+                    <div style={{ marginTop: '0.75rem' }}>
+                      {(order.mano_obra_items || []).map((mo, idx) => (
+                        <div key={`mo-${idx}`} style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            style={{ flex: '2 1 180px', minWidth: '150px', fontWeight: '500' }}
+                            value={mo.descripcion || ''}
+                            onChange={e => handleItemChange('mano_obra_items', idx, 'descripcion', e.target.value)}
+                            placeholder="Descripción trabajo..."
+                          />
+                          <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flex: '1 1 120px' }}>
+                            <input
+                              type="number"
+                              className="form-control"
+                              style={{ flex: 1, minWidth: '75px', fontWeight: '600', color: 'var(--primary)' }}
+                              value={mo.precio_unitario || ''}
+                              onChange={e => handleItemChange('mano_obra_items', idx, 'precio_unitario', e.target.value)}
+                              placeholder="Precio S/"
+                            />
+                            <button type="button" className="btn btn-danger" style={{ minHeight: '44px', padding: '0.4rem 0.75rem', flexShrink: 0 }} onClick={() => removeItemRow('mano_obra_items', idx)}>
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Repuestos de Taller — Panel desplegable */}
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowPartsList(v => !v)}
+                        style={{
+                          flex: '1 1 220px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          background: showPartsList ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)',
+                          border: showPartsList ? '1px solid var(--success)' : '1px solid rgba(16,185,129,0.35)',
+                          borderRadius: '8px',
+                          padding: '0.6rem 0.9rem',
+                          cursor: 'pointer',
+                          color: '#fff',
+                          fontSize: '0.875rem',
+                          fontWeight: '600',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Package size={15} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                          Repuestos de Taller Frecuentes
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '400' }}>
+                            ({workshopParts.length} items)
+                          </span>
+                        </span>
+                        <span style={{ color: 'var(--success)', fontSize: '1rem' }}>{showPartsList ? '▲' : '▼'}</span>
+                      </button>
+
+                      {/* Botón fila manual */}
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        style={{ fontSize: '0.8rem', minHeight: '38px', padding: '0.3rem 0.75rem', flexShrink: 0 }}
+                        onClick={() => addItemRow('repuestos_items')}
+                      >
+                        + Fila Manual
+                      </button>
+                    </div>
+
+                    {/* Panel de repuestos integrado (expande la tarjeta naturalmente, nunca se corta) */}
+                    {showPartsList && (
+                      <div style={{
+                        marginBottom: '0.85rem',
+                        background: '#0a0f1d',
+                        border: '1px solid var(--success)',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                        maxHeight: '290px',
+                        overflowY: 'auto'
+                      }}>
+                        {/* Cabecera con cerrar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.45rem 0.85rem', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(16,185,129,0.08)' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600' }}>
+                            Toque un repuesto para agregarlo a la orden:
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            style={{ fontSize: '0.72rem', minHeight: '26px', padding: '0.15rem 0.55rem' }}
+                            onClick={() => setShowPartsList(false)}
+                          >
+                            Cerrar ▲
+                          </button>
+                        </div>
+
+                        {workshopParts.map((part, i) => (
+                          <div
+                            key={part.id}
+                            style={{
+                              padding: '0.7rem 1rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '0.75rem',
+                              borderBottom: i < workshopParts.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                              transition: 'background 0.1s ease'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            onClick={() => {
+                              addRepuestoPreset(part);
+                              setShowPartsList(false);
+                            }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.875rem', color: '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {part.descripcion}
+                              </div>
+                              {part.categoria && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>
+                                  {part.categoria} {part.codigo ? `· ${part.codigo}` : ''}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
+                              <span style={{
+                                fontSize: '0.85rem', fontWeight: '700',
+                                color: 'var(--success)',
+                                background: 'rgba(16,185,129,0.12)',
+                                border: '1px solid rgba(16,185,129,0.3)',
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '6px'
+                              }}>
+                                S/ {part.precio.toFixed(2)}
+                              </span>
+                              {part.stock !== undefined && (
+                                <span style={{ fontSize: '0.68rem', color: part.stock > 5 ? 'var(--success)' : 'var(--warning)' }}>
+                                  Stock: {part.stock}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Lista actual de Repuestos */}
+                    {(order.repuestos_items || []).length > 0 && (
+                      <div style={{ marginTop: '0.75rem' }}>
+                        {(order.repuestos_items || []).map((rep, idx) => (
+                          <div key={`rep-${idx}`} style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                            <input
+                              type="text"
+                              className="form-control"
+                              style={{ flex: '2 1 180px', minWidth: '150px' }}
+                              placeholder="Descripción del repuesto..."
+                              value={rep.descripcion || ''}
+                              onChange={e => handleItemChange('repuestos_items', idx, 'descripcion', e.target.value)}
+                            />
+                            <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flex: '1 1 150px' }}>
+                              <input
+                                type="number"
+                                className="form-control"
+                                style={{ flex: 1, minWidth: '70px', fontWeight: '600', color: 'var(--success)' }}
+                                placeholder="Precio S/"
+                                value={rep.precio_unitario ?? ''}
+                                onChange={e => handleItemChange('repuestos_items', idx, 'precio_unitario', e.target.value)}
+                              />
+                              <input
+                                type="number"
+                                min="1"
+                                className="form-control"
+                                style={{ width: '70px', minWidth: '55px', textAlign: 'center', fontWeight: '600' }}
+                                value={rep.cantidad ?? 1}
+                                onChange={e => handleItemChange('repuestos_items', idx, 'cantidad', e.target.value)}
+                                title="Cantidad"
+                              />
+                              <button type="button" className="btn btn-danger" style={{ minHeight: '44px', padding: '0.4rem 0.75rem', flexShrink: 0 }} onClick={() => removeItemRow('repuestos_items', idx)}>
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+
+
 
           {/* ============================================ */}
           {/* PASO 4: TOTALES Y PAGO                      */}
